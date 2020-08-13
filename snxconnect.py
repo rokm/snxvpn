@@ -29,6 +29,8 @@ from struct            import pack, unpack
 from subprocess        import Popen, PIPE
 from snxvpnversion     import VERSION
 
+import bs4 # For bs4.element.* types
+
 """ Todo:
     - timeout can be retrieved at /sslvpn/Portal/LoggedIn
       Function to do this is RetrieveTimeoutVal (url_above) in portal
@@ -288,13 +290,25 @@ class HTML_Requester (object) :
             connecting the VPN. This information then passed to the snx
             program via a socket.
         """
+
+        # BeautifulSoup4 4.9.x added bs4.element.Script type, which
+        # inherits from NavigableString, but is not captured by the
+        # default types=(NavigableString, CData) filter in .text
+        # property (and underlying get_text() method) because
+        # inheritance is not verified, only the type itself.
+        try:
+            # 4.9.0 and later have a bs4.element.Script
+            text_types = (bs4.element.NavigableString, bs4.element.CData, bs4.element.Script)
+        except AttributeError:
+            text_types = (bs4.element.NavigableString, bs4.element.CData)
+
         for script in self.soup.find_all ('script') :
-            if '/* Extender.user_name' in script.text :
+            if '/* Extender.user_name' in script.get_text (types=text_types) :
                 break
         else :
             print ("Error retrieving extender variables")
             return
-        for line in script.text.split ('\n') :
+        for line in script.get_text (types=text_types).split ('\n') :
             if '/* Extender.user_name' in line :
                 break
         stmts = line.split (';')
